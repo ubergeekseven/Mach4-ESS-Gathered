@@ -14,5 +14,8 @@ https://www.youtube.com/watch?v=G85p1VsD3lk - This video describes the layout an
 https://forum.avidcnc.com/t/mach-4-lua-capabilities/1308 - Long winded thread on avid forum to talk through making something that seems simple at the front of it:
 
 
+## All of my gathered help files in one placc
+
+https://github.com/ubergeekseven/Mach4-ESS-Gathered/tree/main/Mach4HelpFiles
 
 
