@@ -1,0 +1,11 @@
+local inst = mc.mcGetInstance("load_modules.mcs")
+
+package.path = string.format(
+	"%s;%s\\Modules\\AvidCNC\\?.luac;",
+	package.path,
+	mc.mcCntlGetMachDir(inst)
+)
+
+-- Offsets module
+package.loaded.Offsets = nil
+require "Offsets"

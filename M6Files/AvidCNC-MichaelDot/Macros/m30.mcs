@@ -1,0 +1,40 @@
+function m30()
+
+  local inst = mc.mcGetInstance("m30()");
+  local msg = "Avid: m30()";
+  local rc = mc.MERROR_NOERROR;
+  
+  -- Set Part Finish output signal
+  local hsig, rc = mc.mcSignalGetHandle(inst, mc.OSIG_PRTSF);
+  if (rc ~= mc.MERROR_NOERROR) then
+    mc.mcCntlLog(
+      inst,
+      string.format("%s failure to get signal handle, rc=%s", msg, rc),
+      "",
+      -1
+    );
+  else
+      mc.mcSignalSetState(hsig, 1);
+  end
+
+  --[[ Additional items that need to be included so
+  our custom M30 macro perfrorms all the functions
+  of the stock M30 macro.
+  --]]
+
+  -- Cutter comp, coolant, mist, and spindle OFF
+  rc = mc.mcCntlGcodeExecute(inst, "G40\nM09\nM05");
+  if (rc ~= mc.MERROR_NOERROR) then
+    mc.mcCntlLog(
+      inst,
+      string.format("%s failure to execute gcode, rc=%s", msg, rc),
+      "",
+      -1
+    );
+  end
+
+end
+
+if (mc.mcInEditor() == 1) then
+ m30()
+end
