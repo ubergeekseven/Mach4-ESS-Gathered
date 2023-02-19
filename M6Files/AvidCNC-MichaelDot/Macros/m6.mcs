@@ -83,7 +83,7 @@ function SetAxisPosition(axis, AxisPos)
 -----------------------------------------------------------------------------------------------------------------  
  valX, rc = mc.mcAxisGetMachinePos(inst, mc.X_AXIS) --Get the position of the X axis in Machine Position
  valY, rc = mc.mcAxisGetMachinePos(inst, mc.Y_AXIS) --Get the position of the Y axis in Machine Position
- valZ, rc = mc.mcAxisGetMachinePos(inst, mc.Z_AXIS) --Get the position of the Z axis in Machine Position
+ valZ, rc = mc.mcAxisGetPos(inst, mc.Z_AXIS) --Get the position of the Z axis in offset, not machine
  
 -----------------------------------------------------------------------------------------------------------------
 -----------------------------------------------------------------------------------------------------------------
@@ -131,16 +131,17 @@ function SetAxisPosition(axis, AxisPos)
 -----------------------------------------------------------------------------------------------------------------      
 -- set current z pos as the replacement of the first tool 
 -----------------------------------------------------------------------------------------------------------------   
-   ZAxisPos = plateTouchedPos
+   local convertFixedz = tonumber(FixedPlateTouchZ)
+   ZAxisPos = convertFixedz
    SetAxisPosition(mc.Z_AXIS, ZAxisPos)
    
-   mc.mcCntlGcodeExecuteWait(inst, 'G91 z2 f25') -- move away from probe surface   
+  -- mc.mcCntlGcodeExecuteWait(inst, 'G91 z2 f25') -- move away from probe surface   
    
 -----------------------------------------------------------------------------------------------------------------   
 -- store
 -----------------------------------------------------------------------------------------------------------------   
-   WriteRegister("MichaelDot/M6/Setup/LastFixedPlateTouchZ", FixedPlateTouchZ) -- before it is overwritten, write last pos to this var
-   WriteRegister("MichaelDot/M6/Setup/FixedPlateTouchZ", plateTouchedPos)    -- store new pos aND OVERWRITE LAST. USED IN LATER M6 CALLS
+  WriteRegister("MichaelDot/M6/Setup/LastFixedPlateTouchZ", plateTouchedPos) -- before it is overwritten, write last pos to this var
+ -- WriteRegister("MichaelDot/M6/Setup/FixedPlateTouchZ", plateTouchedPos)    -- store new pos aND OVERWRITE LAST. USED IN LATER M6 CALLS
 -----------------------------------------------------------------------------------------------------------------   
 
 -----------------------------------------------------------------------------------------------------------------   
@@ -161,9 +162,9 @@ function SetAxisPosition(axis, AxisPos)
   mc.mcCntlGcodeExecute(inst, string.format('G ' .. posmode))--return to pre macro mode G90, or G91
   SetSoftLimits(mc.Z_AXIS, mc.MC_ON) -- mc.MC_ON or MC_OFF  
   mc.mcCntlGcodeExecute(inst, "G90 G53 G0 X" .. tonumber(valX) .. "Y" .. tonumber(valY)) --Move back to X & Y initial location
-  mc.mcCntlGcodeExecute(inst, "G90 G53 G0 Z" .. tonumber(valZ)) --Move back to Z initial location. might be a problem for starting tool. double check.
+  mc.mcCntlGcodeExecute(inst, "G90 G0 Z" .. tonumber(valZ)) --Move back to Z initial location. might be a problem for starting tool. double check.
   mc.mcToolSetCurrent(inst, selectedTool)
-  mc.mcCntlSetLastError(inst, "Tool Change Complete New Z Offset set to  ".. tostring(SecondDifference2).."  inches")
+ 
   end
 
  end -- end of check if new tool is the same as the old

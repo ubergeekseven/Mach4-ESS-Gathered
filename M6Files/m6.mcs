@@ -25,14 +25,11 @@ end
 ------------------------------------------------------------------------------------------------------------
 mTCPositionX = GetRegister("MichaelDot/M6/Setup/MTCPosition_X") -- fixed plate X location
 mTCPositionY = GetRegister("MichaelDot/M6/Setup/MTCPosition_Y") -- fixed plate Y location
-zHeightSurface = GetRegister("MichaelDot/M6/Setup/ZHeightSurface") -- original probing of the surface z height
+MTCZHeight = GetRegister("MichaelDot/M6/Setup/MTCZHeight") -- mtc z heightr to move to after going to the location
 FixedPlateTouchZ = GetRegister("MichaelDot/M6/Setup/FixedPlateTouchZ")
+LastFixedPlateTouchZ = GetRegister("MichaelDot/M6/Setup/LastFixedPlateTouchZ") -- var to store first touch in after m6.
 FixedPlate_X = GetRegister("MichaelDot/M6/Setup/FixedPlate_X") -- fixed plate X location
 FixedPlate_Y = GetRegister("MichaelDot/M6/Setup/FixedPlate_Y") -- fixed plate Y location
-PlateThickness = GetRegister("MichaelDot/M6/Setup/PlateThickness") -- the thickness of the plate used to touch the surface z zero. For subtracting from touch position
-M6SetupDifference = GetRegister("MichaelDot/M6/Setup/M6SetupDifference") -- storing the calculated difference in register to recall for later use
-M6NewDifference = GetRegister("MichaelDot/M6/Setup/M6NewDifference") -- this register stores the new difference after tool change and calculating the new height compared to the old height
-m6CalculatedDifference = GetRegister("MichaelDot/M6/Setup/M6CalculatedDifference") -- register value to use to set the current offset z 0 location after probing. should be used to compare between the differences between tool changes
 FirstTouchSpeed = GetRegister("MichaelDot/M6/Setup/FirstTouchSpeed") -- speed in inches per minute to probe for finding the surface before going slower
 SecondTouchSpeed = GetRegister("MichaelDot/M6/Setup/SecondTouchSpeed") -- slower speed to touch at
 TouchRetractHeight = GetRegister("MichaelDot/M6/Setup/TouchRetractHeight") -- how much to move up before touching slower
@@ -58,52 +55,10 @@ function GoToPermPlate()
 	mc.mcCntlGcodeExecute(inst, 'G53 X'.. FixedPlate_X .. 'Y' .. FixedPlate_Y .. 'f300')
 end
 
-function BiggerOrSmaller()
-  	IsItBiggerorSmaller = "0"
-	wx.wxMessageBox('inside bigger or smaller 0') 
-	if 	(tostring(M6NewDifference) < tostring(M6SetupDifference)) then
-		IsItBiggerorSmaller = "1"
-		wx.wxMessageBox('inside bigger or smaller 1') 
-	elseif (tostring(M6NewDifference) > tostring(M6SetupDifference)) then
-        IsItBiggerorSmaller = "2"
-		wx.wxMessageBox('inside bigger or smaller 2') 
-	elseif (tostring(M6NewDifference) == tostring(M6SetupDifference)) then
-		IsItBiggerorSmaller = "3"
-		wx.wxMessageBox('inside bigger or smaller 3') 
-	--return
-    end
-     wx.wxMessageBox('value of isitbigger is ' .. IsItBiggerorSmaller )
-	end 
-
-function DoNewMathForSize()
-	
-	if IsItBiggerorSmaller == "1" then
-	   wx.wxMessageBox('Tool is smaller') -- testing pop up to see output only
-	-- do something like subtract or add to get the right offset set up in the folowing steps   
-	
-	   SecondDifference2 = math.abs(M6SetupDifference - M6NewDifference)
-	--   wx.wxMessageBox("New Difference is set to" .. tostring(SecondDifference2))
-
-	--   WriteRegister("MichaelDot/M6/Setup/M6SetupDifference", CalculatedDifference)
-	--   WriteRegister("MichaelDot/M6/Setup/M6NewDifference", SecondDifference2)  
-	elseif IsItBiggerorSmaller == "2" then
-		wx.wxMessageBox('Tool is bigger') -- testing pop up to see output only
-		-- do something like subtract or add to get the right offset set up in the folowing steps   
-			-- M6NewDifference = m6CalculatedDifference
-	   SecondDifference2 = math.abs(M6NewDifference - M6SetupDifference)
-	-- wx.wxMessageBox("New Difference is set to" .. tostring(SecondDifference2))
-	--   WriteRegister("MichaelDot/M6/Setup/M6NewDifference", SecondDifference2)  
-	elseif IsItBiggerorSmaller == "3" then
-		wx.wxMessageBox('same size')
-	end
-       
-	WriteRegister("MichaelDot/M6/Setup/M6NewDifference", SecondDifference2) 
-	WriteRegister("MichaelDot/M6/Setup/M6SetupDifference", SecondDifference2)  	
-end
 
 function SetSoftLimits(axis, state)
 	mc.mcSoftLimitSetState(inst, axis, state);
-	wx.wxMessageBox('Soft limits should now be ' .. tostring(state))
+	--wx.wxMessageBox('Soft limits should now be ' .. tostring(state))
    
     end
 
@@ -128,7 +83,7 @@ function SetAxisPosition(axis, AxisPos)
 -----------------------------------------------------------------------------------------------------------------  
  valX, rc = mc.mcAxisGetMachinePos(inst, mc.X_AXIS) --Get the position of the X axis in Machine Position
  valY, rc = mc.mcAxisGetMachinePos(inst, mc.Y_AXIS) --Get the position of the Y axis in Machine Position
- valZ, rc = mc.mcAxisGetMachinePos(inst, mc.Z_AXIS) --Get the position of the Z axis in Machine Position
+ valZ, rc = mc.mcAxisGetPos(inst, mc.Z_AXIS) --Get the position of the Z axis in offset, not machine
  
 -----------------------------------------------------------------------------------------------------------------
 -----------------------------------------------------------------------------------------------------------------
@@ -144,8 +99,10 @@ function SetAxisPosition(axis, AxisPos)
   SetSoftLimits(mc.Z_AXIS, mc.MC_OFF) -- soft limits turned off
   mc.mcCntlGcodeExecute(inst, "G90 G53 G0 Z0.0");--Move the Z axis all the way up
   GoToMTCLocation() -- This moves to the tool change location
+  mc.mcCntlGcodeExecuteWait(inst, "G90 G53 G0 Z" .. MTCZHeight);--Move the Z axis to change height  
   mc.mcCntlSetLastError(inst, "Change to tool " .. tostring(selectedTool) .. " and press start to continue") --Message at beginning of tool change
   mc.mcCntlToolChangeManual(inst, true) --This will pause the tool change here and wait for a press of cycle start to continue
+  mc.mcCntlGcodeExecute(inst, "G90 G53 G0 Z0.0");--Move the Z axis all the way up  
   GoToPermPlate() 
   mc.mcCntlGcodeExecute(inst, "G53 G0 z" .. moveToPlateDistance)--Moves the z axis down input distance
  -----------------------------------------------------------------------------------------------------------------
@@ -165,37 +122,35 @@ function SetAxisPosition(axis, AxisPos)
 	wx.wxMessageBox('No probe strike. Aborting the rest of the routine')
 	return
    end
+-----------------------------------------------------------------------------------------------------------------   
+
+-----------------------------------------------------------------------------------------------------------------   
    
    plateTouchedPos = mc.mcAxisGetPos(inst, mc.Z_AXIS)   -- store the z measurement of current probe touch
-    wx.wxMessageBox('plate touched pos is  ' .. plateTouchedPos)  
+  -- wx.wxMessageBox('last tool position was ' .. FixedPlateTouchZ .. " the new position is " .. plateTouchedPos)
+-----------------------------------------------------------------------------------------------------------------      
+-- set current z pos as the replacement of the first tool 
+-----------------------------------------------------------------------------------------------------------------   
+   local convertFixedz = tonumber(FixedPlateTouchZ)
+   ZAxisPos = convertFixedz
+   SetAxisPosition(mc.Z_AXIS, ZAxisPos)
    
-   --local CalculatedDifference = math.abs(zHeightSurface - FixedPlateTouchZ)    -- current difference in height compared to original z surface and the perm plate
-   M6NewDifference = math.abs(plateTouchedPos - M6SetupDifference) -- Get the new height difference to compare to the last one in the next step
-  mc.mcCntlGcodeExecuteWait(inst, 'G91 z2 f25') -- move away from probe surface
-  wx.wxMessageBox('Calculated Position should be ' .. m6CalculatedDifference .. " moving on to bigger or smaller check")
-  --M6NewDifference = m6CalculatedDifference
-  WriteRegister("MichaelDot/M6/Setup/M6NewDifference", M6NewDifference)  
-  WriteRegister("MichaelDot/M6/Setup/M6CalculatedDifference", m6CalculatedDifference)
-  WriteRegister("MichaelDot/M6/Setup/FixedPlateTouchZ", plateTouchedPos)    
-  
-  wx.wxMessageBox('Stored difference is set to'.. M6NewDifference .. 'Calculated difference should be ' .. m6CalculatedDifference .. " moving on to bigger or smaller check")  
-  BiggerOrSmaller() -- check if new height is bigger or smaller than the last height
+  -- mc.mcCntlGcodeExecuteWait(inst, 'G91 z2 f25') -- move away from probe surface   
+   
+-----------------------------------------------------------------------------------------------------------------   
+-- store
+-----------------------------------------------------------------------------------------------------------------   
+  WriteRegister("MichaelDot/M6/Setup/LastFixedPlateTouchZ", plateTouchedPos) -- before it is overwritten, write last pos to this var
+ -- WriteRegister("MichaelDot/M6/Setup/FixedPlateTouchZ", plateTouchedPos)    -- store new pos aND OVERWRITE LAST. USED IN LATER M6 CALLS
+-----------------------------------------------------------------------------------------------------------------   
 
+-----------------------------------------------------------------------------------------------------------------   
 
-  
-  DoNewMathForSize()  -- change length of tool with calculated offset
-
-       
---attemp to set position of an axis with mcAxisSetPos
-  ZAxisPos = SecondDifference2
-  AxisNumber = 2
-  SetAxisPosition(mc.Z_AXIS, ZAxisPos)  
-
-  
- -- mc.mcToolSetData(inst, mc.MTOOL_MILL_HEIGHT, selectedTool, ToolLength)  --- this sets the tool length value into the tool table into the selected tool position number, Note - i havent reassigned current tool varible so i have to use the "selectedTool" name
- -- mc.mcCntlGcodeExecute(inst, "G04 p.5")
   mc.mcCntlGcodeExecute(inst, "G90 G53 G1 Z0 F80") --Retract back to Z home
   
+-----------------------------------------------------------------------------------------------------------------   
+-----------------------------------------------------------------------------------------------------------------   
+
   local MyChoice = wx.wxMessageBox("Remove Probe Clip","Click OK to continue" , 16)  -- brings up a dialog box and waits for a selection to proceed
   
   if (MyChoice == 16) then  --16 is cancel
@@ -207,16 +162,14 @@ function SetAxisPosition(axis, AxisPos)
   mc.mcCntlGcodeExecute(inst, string.format('G ' .. posmode))--return to pre macro mode G90, or G91
   SetSoftLimits(mc.Z_AXIS, mc.MC_ON) -- mc.MC_ON or MC_OFF  
   mc.mcCntlGcodeExecute(inst, "G90 G53 G0 X" .. tonumber(valX) .. "Y" .. tonumber(valY)) --Move back to X & Y initial location
-  mc.mcCntlGcodeExecute(inst, "G90 G53 G0 Z" .. tonumber(valZ)) --Move back to Z initial location
+  mc.mcCntlGcodeExecute(inst, "G90 G0 Z" .. tonumber(valZ)) --Move back to Z initial location. might be a problem for starting tool. double check.
   mc.mcToolSetCurrent(inst, selectedTool)
-  mc.mcCntlSetLastError(inst, "Tool Change Complete New Z Offset set to  ".. tostring(SecondDifference2).."  inches")
-  end
-  
-        
- end 
  
-end
+  end
 
+ end -- end of check if new tool is the same as the old
+ 
+end -- end m6 function
 if (mc.mcInEditor() == 1) then
  m6()
 end
