@@ -24,19 +24,20 @@ I am going to redesign this plate to be mostly printed and have an aluminum plat
 Currently, I sit the moveable plate against the arm to conduct. This can be problematic though and I would prefer a plate that is always connected other than the magnet to the tool.
 
 ## M6 Setup Tab - how to use
-
+![alt text](https://github.com/ubergeekseven/Mach4-ESS-Gathered/blob/main/M6Files/Input.png)
 When you run my profile you have to do some setup before starting your job:
 1) open the M6 setup tab
 2) On the left top there are variables to set your probing settings up. 
-   1)Touch Plate Thickness - used to set the thickness of the moveable plate to subtract from the probing of the surface in step 1
-   2) First Touch Speed - The speed when finding the first touch 
-   3) Second Touch Speed - to move slower after finding the plate
-   4) How far to move up after touching
-   5) How far to set the probe move to before stopping. I have disabled soft limits of the z in order to be able to call this and enabled at the end
-   6) 2nd Probing pre-move - after moving to t he fixed plate the z axis will move this distance before starting the probing. Allows for getting to the plate faster
+   - Touch Plate Thickness - used to set the thickness of the moveable plate to subtract from the probing of the surface in step 1
+   - First Touch Speed - The speed when finding the first touch 
+   - Second Touch Speed - to move slower after finding the plate
+   - How far to move up after touching
+   - How far to set the probe move to before stopping. I have disabled soft limits of the z in order to be able to call this and enabled at the end
+   - 2nd Probing pre-move - after moving to the fixed plate the z axis will move this distance before starting the probing. Allows for getting to the plate faster
+   
 3) The plate positions section
-  1) you can enter the MTC position manually in machine coordinatesor jog to the place you want to change your tool and press Save MTC Pos. It will move up to z0 machine pos, rapid to the MTC location anf then move to the z height it is set to.
-  2) Fixed Plate Location in machine coordinates. The same thing works here other than it only moves to xy location because tool heights are different. You can use the 2nd Probing pre-move entry to tune this for your job.
+   - you can enter the MTC position manually in machine coordinates or jog to the place you want to change your tool and press Save MTC Pos. It will move up to z0 machine pos, rapid to the MTC location and then move to the z height it is set to.
+   - Fixed Plate Location in machine coordinates. The same thing works here other than it only moves to xy location because tool heights are different. You can use the 2nd Probing pre-move entry to tune this for your job.
 
 Once you have these entered, move the first tool to the location to zero on. Could be your material. You can even use your previous probing using the avid plate if you do this already. Then you will be set at xyz zero already. Does not matter, as long as you have set your z0 for the job. I would have to modify the Probe Sequence Start script to remove the first tool touch for z0 if just using your plate is good enough.
 
