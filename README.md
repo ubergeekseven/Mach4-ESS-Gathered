@@ -52,6 +52,9 @@ That is it.
 4) the z axis will go to the top, restore the settings it stored from before this all started and return to the last location when the M6 was called.
 5) Then your post should turn on your spindle and go to the next section of code. 
 
+this diagram shows the steps that the scripts go through. it does not have the register names used in description. it should help understand my thinking though.
+![alt text](https://github.com/ubergeekseven/Mach4-ESS-Gathered/blob/main/M6Files/Mach4m6.png)
+
          
 ## How to use the files I have provided
 Move the screen file into t he screen directory.
