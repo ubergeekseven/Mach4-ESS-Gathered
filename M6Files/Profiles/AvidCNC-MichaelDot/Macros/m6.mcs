@@ -1,0 +1,176 @@
+--package.path = "C:\\Mach4Hobby\\Profiles\\AvidCNC-Modified\\MichaelDot\\?.lua;"
+function m6()
+
+local inst = mc.mcGetInstance();
+local hreg = mc.mcRegGetHandle(inst, 'ESS/Probing_State') -- registry location for Probing_State value. We will use this later to make sure the probe stops when the gcode for probing occurs
+local SecondDifference2
+
+function GetRegister(regname)
+ local inst = mc.mcGetInstance()
+ local hreg = mc.mcRegGetHandle(inst, string.format("iRegs0/%s", regname))
+ return mc.mcRegGetValueString(hreg)
+end
+
+function WriteRegister(regname, regvalue)
+ local inst = mc.mcGetInstance()
+ local hreg = mc.mcRegGetHandle(inst, string.format("iRegs0/%s", regname))
+ mc.mcRegSetValueString(hreg, tostring(regvalue))
+end
+
+
+
+ 
+------------------------------------------------------------------------------------------------------------
+-- registers available in this script
+------------------------------------------------------------------------------------------------------------
+mTCPositionX = GetRegister("MichaelDot/M6/Setup/MTCPosition_X") -- fixed plate X location
+mTCPositionY = GetRegister("MichaelDot/M6/Setup/MTCPosition_Y") -- fixed plate Y location
+MTCZHeight = GetRegister("MichaelDot/M6/Setup/MTCZHeight") -- mtc z heightr to move to after going to the location
+FixedPlateTouchZ = GetRegister("MichaelDot/M6/Setup/FixedPlateTouchZ")
+LastFixedPlateTouchZ = GetRegister("MichaelDot/M6/Setup/LastFixedPlateTouchZ") -- var to store first touch in after m6.
+FixedPlate_X = GetRegister("MichaelDot/M6/Setup/FixedPlate_X") -- fixed plate X location
+FixedPlate_Y = GetRegister("MichaelDot/M6/Setup/FixedPlate_Y") -- fixed plate Y location
+FirstTouchSpeed = GetRegister("MichaelDot/M6/Setup/FirstTouchSpeed") -- speed in inches per minute to probe for finding the surface before going slower
+SecondTouchSpeed = GetRegister("MichaelDot/M6/Setup/SecondTouchSpeed") -- slower speed to touch at
+TouchRetractHeight = GetRegister("MichaelDot/M6/Setup/TouchRetractHeight") -- how much to move up before touching slower
+moveToPlateDistance = GetRegister("MichaelDot/M6/Setup/MoveToPlateDistance") -- how much to move up before touching slower
+--switch the distance input for moving the z to a negative to move in the correct direction
+moveToPlateDistance = -moveToPlateDistance 
+probingSearchDistance = GetRegister("MichaelDot/M6/Setup/ProbingSearchDistance") -- how much to move up before touching slower
+--switch the distance input for probing to a negative to move in the correct direction
+probingSearchDistance = -probingSearchDistance
+
+-----------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------
+ 
+-----------------------------------------------------------------------------------------------------------------
+-- m6 functions
+-----------------------------------------------------------------------------------------------------------------
+
+function GoToMTCLocation()
+	mc.mcCntlGcodeExecute(inst, 'G53 X'.. mTCPositionX .. 'Y' .. mTCPositionY)
+end
+
+function GoToPermPlate()
+	mc.mcCntlGcodeExecute(inst, 'G53 X'.. FixedPlate_X .. 'Y' .. FixedPlate_Y .. 'f300')
+end
+
+
+function SetSoftLimits(axis, state)
+	mc.mcSoftLimitSetState(inst, axis, state);
+	--wx.wxMessageBox('Soft limits should now be ' .. tostring(state))
+   
+    end
+
+function SetAxisPosition(axis, AxisPos)
+	
+	 mc.mcAxisSetPos(inst, axis, AxisPos)
+	 
+	end
+-----------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------
+
+
+-- m6 starts and we need to know where we are as well as pull in the known difference in height between the current tool 
+-- and the second touch plate. 
+ 
+  currentTool = mc.mcToolGetCurrent(inst)
+  selectedTool = mc.mcToolGetSelected(inst)
+  posmode = mc.mcCntlGetPoundVar(inst, mc.SV_MOD_GROUP_3) --get the current mode so we can return to it when macro ends
+ 
+----------------------------------------------------------------------------------------------------------------- 
+  --Get positions before moving to do tool change
+-----------------------------------------------------------------------------------------------------------------  
+ valX, rc = mc.mcAxisGetMachinePos(inst, mc.X_AXIS) --Get the position of the X axis in Machine Position
+ valY, rc = mc.mcAxisGetMachinePos(inst, mc.Y_AXIS) --Get the position of the Y axis in Machine Position
+ valZ, rc = mc.mcAxisGetPos(inst, mc.Z_AXIS) --Get the position of the Z axis in offset, not machine
+ 
+-----------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------
+
+-----------------------------------------------------------------------------------------------------------------
+-- check if new tool is the same as the old and leave if it is. Move on to the rest of the tool change if not
+-----------------------------------------------------------------------------------------------------------------
+ 
+ if selectedTool == currentTool then
+  return
+  mc.mcCntlSetLastError(inst, "Current tool == Selected tool so there is nothing to do")
+ else
+  SetSoftLimits(mc.Z_AXIS, mc.MC_OFF) -- soft limits turned off
+  mc.mcCntlGcodeExecute(inst, "G90 G53 G0 Z0.0");--Move the Z axis all the way up
+  GoToMTCLocation() -- This moves to the tool change location
+  mc.mcCntlGcodeExecuteWait(inst, "G90 G53 G0 Z" .. MTCZHeight);--Move the Z axis to change height  
+  mc.mcCntlSetLastError(inst, "Change to tool " .. tostring(selectedTool) .. " and press start to continue") --Message at beginning of tool change
+  mc.mcCntlToolChangeManual(inst, true) --This will pause the tool change here and wait for a press of cycle start to continue
+  mc.mcCntlGcodeExecute(inst, "G90 G53 G0 Z0.0");--Move the Z axis all the way up  
+  GoToPermPlate() 
+  mc.mcCntlGcodeExecute(inst, "G53 G0 z" .. moveToPlateDistance)--Moves the z axis down input distance
+ -----------------------------------------------------------------------------------------------------------------
+-- Start the probing for Z first move
+-----------------------------------------------------------------------------------------------------------------
+   mc.mcCntlGcodeExecuteWait(inst,'G91 G31 Z'..probingSearchDistance .. 'F' .. FirstTouchSpeed)
+   if mc.mcRegGetValue(hreg) == -1 then
+	wx.wxMessageBox('No probe strike. Aborting the rest of the routine')
+	return
+   end
+   mc.mcCntlGcodeExecuteWait(inst, 'G91 Z'.. TouchRetractHeight) -- retract and probe slower
+-----------------------------------------------------------------------------------------------------------------   
+-- Second probing with slower speed   
+-----------------------------------------------------------------------------------------------------------------
+   mc.mcCntlGcodeExecuteWait(inst,'G91 G31 Z'..probingSearchDistance .. 'F' .. SecondTouchSpeed)
+   if mc.mcRegGetValue(hreg) == -1 then
+	wx.wxMessageBox('No probe strike. Aborting the rest of the routine')
+	return
+   end
+-----------------------------------------------------------------------------------------------------------------   
+
+-----------------------------------------------------------------------------------------------------------------   
+   
+   plateTouchedPos = mc.mcAxisGetPos(inst, mc.Z_AXIS)   -- store the z measurement of current probe touch
+  -- wx.wxMessageBox('last tool position was ' .. FixedPlateTouchZ .. " the new position is " .. plateTouchedPos)
+-----------------------------------------------------------------------------------------------------------------      
+-- set current z pos as the replacement of the first tool 
+-----------------------------------------------------------------------------------------------------------------   
+   local convertFixedz = tonumber(FixedPlateTouchZ)
+   ZAxisPos = convertFixedz
+   SetAxisPosition(mc.Z_AXIS, ZAxisPos)
+   
+  -- mc.mcCntlGcodeExecuteWait(inst, 'G91 z2 f25') -- move away from probe surface   
+   
+-----------------------------------------------------------------------------------------------------------------   
+-- store
+-----------------------------------------------------------------------------------------------------------------   
+  WriteRegister("MichaelDot/M6/Setup/LastFixedPlateTouchZ", plateTouchedPos) -- before it is overwritten, write last pos to this var
+ -- WriteRegister("MichaelDot/M6/Setup/FixedPlateTouchZ", plateTouchedPos)    -- store new pos aND OVERWRITE LAST. USED IN LATER M6 CALLS
+-----------------------------------------------------------------------------------------------------------------   
+
+-----------------------------------------------------------------------------------------------------------------   
+
+  mc.mcCntlGcodeExecute(inst, "G90 G53 G1 Z0 F80") --Retract back to Z home
+  
+-----------------------------------------------------------------------------------------------------------------   
+-----------------------------------------------------------------------------------------------------------------   
+
+  local MyChoice = wx.wxMessageBox("Remove Probe Clip","Click OK to continue")  -- brings up a dialog box and waits for a selection to proceed
+  
+ --[[ if (MyChoice == 16) then  --16 is cancel
+      rc = mc.mcCntlSetLastError(inst, 'probing.')  
+  
+  return
+  elseif (MyChoice == 4) then
+  ]]
+  
+  mc.mcCntlGcodeExecute(inst, string.format('G ' .. posmode))--return to pre macro mode G90, or G91
+  SetSoftLimits(mc.Z_AXIS, mc.MC_ON) -- mc.MC_ON or MC_OFF  
+  mc.mcCntlGcodeExecute(inst, "G90 G53 G0 X" .. tonumber(valX) .. "Y" .. tonumber(valY)) --Move back to X & Y initial location
+  mc.mcCntlGcodeExecute(inst, "G90 G0 Z" .. tonumber(valZ)) --Move back to Z initial location. might be a problem for starting tool. double check.
+  mc.mcToolSetCurrent(inst, selectedTool)
+ 
+  --end
+
+ end -- end of check if new tool is the same as the old
+ 
+end -- end m6 function
+if (mc.mcInEditor() == 1) then
+ m6()
+end
