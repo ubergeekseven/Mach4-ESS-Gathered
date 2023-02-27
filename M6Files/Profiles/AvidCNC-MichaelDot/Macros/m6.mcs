@@ -1,6 +1,8 @@
 --package.path = "C:\\Mach4Hobby\\Profiles\\AvidCNC-Modified\\MichaelDot\\?.lua;"
 function m6()
 
+
+	
 local inst = mc.mcGetInstance();
 local hreg = mc.mcRegGetHandle(inst, 'ESS/Probing_State') -- registry location for Probing_State value. We will use this later to make sure the probe stops when the gcode for probing occurs
 local SecondDifference2
@@ -48,16 +50,24 @@ probingSearchDistance = -probingSearchDistance
 -----------------------------------------------------------------------------------------------------------------
 
 function GoToMTCLocation()
+	mc.mcCntlSetLastError(inst, "Moving to the Tool Change Location")
 	mc.mcCntlGcodeExecute(inst, 'G53 X'.. mTCPositionX .. 'Y' .. mTCPositionY)
 end
 
 function GoToPermPlate()
+    mc.mcCntlSetLastError(inst, "Moving to the Fixed Plate Location")
 	mc.mcCntlGcodeExecute(inst, 'G53 X'.. FixedPlate_X .. 'Y' .. FixedPlate_Y .. 'f300')
 end
 
 
 function SetSoftLimits(axis, state)
+	
 	mc.mcSoftLimitSetState(inst, axis, state);
+	if state == 1.0 then
+		mc.mcCntlSetLastError(inst, "Turning Soft Limits for Z to ON")
+	elseif state == 0.0 then
+		mc.mcCntlSetLastError(inst, "Turning Soft Limits for Z to OFF")
+	end
 	--wx.wxMessageBox('Soft limits should now be ' .. tostring(state))
    
     end
@@ -145,7 +155,7 @@ function SetAxisPosition(axis, AxisPos)
 -----------------------------------------------------------------------------------------------------------------   
 
 -----------------------------------------------------------------------------------------------------------------   
-
+  mc.mcCntlSetLastError(inst, "Move to Z0 Machine Coordinates")
   mc.mcCntlGcodeExecute(inst, "G90 G53 G1 Z0 F80") --Retract back to Z home
   
 -----------------------------------------------------------------------------------------------------------------   
